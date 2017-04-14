@@ -1,729 +1,722 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<!-- Copyright (c) 2010  Rally Software Development Corp.  All rights reserved -->
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <html>
-    <head>
-        <title>All Test Cases per Iteration no Summary</title>
-        <meta name="Name" content="Test Cases Per Iteration no Summary" />
-        <meta name="Version" content="1.4" />
-        <meta name="Vendor" content="Rally Software" />
-        <meta name="Author" content="Joel K" />
-        <script src='/apps/1.31/sdk.js' type='text/javascript'>
-        </script>
-        <script type="text/javascript">
-            
-            //This app queries iteratively all test cases associated to user stories and defects.  It also includes those in scheduled test sets.  Version 1.4 adds Defect ID's and Names associated to test cases for current iteration.
-
-            // declare global variables
-            var gStories = new Array();
-            var gIterationDropdown;
-            var gTable;
-            
-            function tableExample(){
-            
-                var rallyDataSource = new rally.sdk.data.RallyDataSource('__WORKSPACE_OID__', '__PROJECT_OID__', '__PROJECT_SCOPING_UP__', '__PROJECT_SCOPING_DOWN__');
-                
-                function onIterationSelected(){
-                
-                    var queryStr;
-                    var queryArray = [];
-                    var date = new Date();
-                    var defect_startdate = new Date(
-                        date.getFullYear(), 
-                        date.getMonth(), 
-                        date.getDate() - 35,
-                        date.getHours(),
-                        date.getMinutes(),
-                        date.getSeconds(),
-                        date.getMilliseconds()
-                    );
-                    var defect_startdate = defect_startdate.format("isoUtcDateTime");
-                    
-                    // clean out any old stuff from prior runs
-                    gStories = [];
-                    gDefects = [];
-                    gTestSets = [];
-                    
-                    if (gTable != null) 
-                        gTable.destroy();
-                    
-                    dojo.empty(dojo.byId('table_output'));
-                    
-                    // setup query strings
-                    queryStr = "(Iteration.Name = " + "\"" + gIterationDropdown.getSelectedName() + "\")";
-                    itrquery = "(Name = " + "\"" + gIterationDropdown.getSelectedName() + "\")";
-                    defectdensityquery = "(OpenedDate >= " + "\""+ defect_startdate + "\")";
-                    
-                    // setup story query
-                    queryArray[0] = {
-                        key: 'stories',
-                        type: 'HierarchicalRequirement',
-                        query: queryStr,
-                        fetch: 'FormattedID,Name,ScheduleState,PlanEstimate,Project,State,TestCases,LastVerdict,LastRun,CreationDate,Method'
-                    };
-                    
-                    // setup defect query
-                    queryArray[1] = {
-                        key: 'defects',
-                        type: 'Defect',
-                        query: queryStr,
-                        fetch: 'FormattedID,Name,ScheduleState,PlanEstimate,Project,State,TestCases,LastVerdict,LastRun,CreationDate,Method'
-                    };
-
-                    // setup test set query
-                    queryArray[2] = {
-                        key: 'testset',
-                        type: 'TestSet',
-                        query: queryStr,
-                        fetch: 'FormattedID,Name,ScheduleState,PlanEstimate,Project,TestCases,LastVerdict,LastRun,CreationDate,Method'
-                    };
-
-                    // setup iteration query
-                    queryArray[3] = {
-                        key: 'iteration',
-                        type: 'Iteration',
-                        query: itrquery,
-                        fetch: 'StartDate,EndDate'
-                    };
-                                        
-                    // setup defect density query (grab all defects entered last 35 days)
-                    queryArray[4] = {
-                        key: 'defectdensity',
-                        type: 'Defect',
-                        //query: defectdensityquery,
-                        fetch: 'FormattedID,Name,TestCase,CreationDate'
-                    };                                        
-                                        
-                    // execute query
-                    rallyDataSource.findAll(queryArray, populateTable);
-                    
-                }
-                
-                function populateTable(results){
-                console.log(results);   
-                             
-                    var nbrStories;
-                    var nbrDefects;
-                    var nbrTestCases;
-                    var nbrTestSets;
-                    var aStory;
-                    var aDefect;
-                    var aTest;
-                    var aTestSet;
-                    var type;
-                    var alltests = 0;
-                    var storytests = 0;
-                    var defecttests = 0;
-                    var settests = 0;
-                    var automationcounter = 0;
-                    var newtestcounter = 0;
-                    var passcounter = 0;
-                    var failcounter = 0;
-                    var notruncounter = 0;
-                    var automatedpass = 0;
-                    var automationnotdone = 0;
-                    var manualpass = 0;
-                    var manualnotdone = 0;
-                    var automatedfail = 0;
-                    var manualfail = 0;
-                    
-                    var tableDiv;
-                    var tableConfig;
-                    
-                    var testRowInfo;
-                    
-                    // create the output table
-                    tableDiv = document.getElementById('table_output');
-                    tableConfig = {
-                        columns: [{
-                            key: 'New Test?'
-                            //width: "10%"
-                        }, {                            
-                            key: 'Test Case ID' 
-                            //width: "10%"
-                        }, {
-                            key: 'Test Case Name' 
-                            //width: "25%"
-                        }, {
-                            key: 'Last Run Date' 
-                            //width: "10%"
-                        }, {
-                            key: 'Last Verdict' 
-                            //width: "10%"
-                        }, {
-                            key: 'Test Method' 
-                            //width: "10%"
-                        }, {
-                            key: 'Project' 
-                            //width: "10%"
-                        }, {
-                            key: 'Work Product Type' 
-                            //width: "10%"
-                        }, {
-                            key: 'Work Product Name' 
-                            //width: "20%"
-                        }, {
-                            key: 'Work Product State'
-                            //width: "10%"
-                        }, {
-                            key: '# Defects Found'
-                            //width: "10%"
-                        }, {
-                            key: 'Defect IDs'
-                            //width: "10%"
-                        }]
-                    };
-                    
-                    gTable = new rally.sdk.ui.Table(tableConfig);
-                    
-                    // localize stories
-                    gStories = gStories.concat(results.stories);
-                    
-                    // get # of stories
-                    nbrStories = gStories.length;
-                
-                    // loop through each story
-                    for (var storyNdx = 0; storyNdx < nbrStories; storyNdx++) {
-                        
-                        // localize the story
-                        aStory = gStories[storyNdx];
-                          
-                        nbrTestCases = aStory.TestCases.length;
-                                                    
-                        for (var testNdx = 0; testNdx < nbrTestCases; testNdx++) {
-                        
-                            newthisiteration = "";
-                            aTest = aStory.TestCases[testNdx];
-                            type = "Story";
-                            storytests++;
-
-                            // add contents to null results
-                            aTest.LastRun = aTest.LastRun || "000000000000";
-                            aTest.LastVerdict = aTest.LastVerdict || "000000000000";
-
-                            //convert dates to something useful
-                            date1 = aTest.LastRun.substr(0,4);
-                            date2 = aTest.LastRun.substr(5,2);
-                            date3 = aTest.LastRun.substr(8,2);
-                            dater = date1+date2+date3;
-                            idater = parseInt(dater);
-
-                            itrdate1 = results.iteration[0].StartDate.substr(0,4);
-                            var itrdate2 = results.iteration[0].StartDate.substr(5,2);
-                            var itrdate3 = results.iteration[0].StartDate.substr(8,2);
-                            var itrdater = itrdate1+itrdate2+itrdate3;
-                            iitrdater = parseInt(itrdater);
-
-                            var itredate1 = results.iteration[0].EndDate.substr(0,4);
-                            var itredate2 = results.iteration[0].EndDate.substr(5,2);
-                            var itredate3 = results.iteration[0].EndDate.substr(8,2);
-                            var itredater = itredate1+itredate2+itredate3;
-                            iitredater = parseInt(itredater);
-
-                            // check if test was run during current iteration
-                            if (idater >= iitrdater && idater <= iitredater) {
-                               run = aTest.LastRun.substr(0,10);
-                               verdict = aTest.LastVerdict.substr(0,10);
-                            } else {
-                               run = "<I>[No Data this Iteration]</I>";
-                               verdict = "<I>[No Results this Iteration]</I>";
-                            };
-
-                            // check if test was created during current iteration
-                            createddate1 = aTest.CreationDate.substr(0,4);
-                            createddate2 = aTest.CreationDate.substr(5,2);
-                            createddate3 = aTest.CreationDate.substr(8,2);
-                            createddater = createddate1+createddate2+createddate3;
-                            icreateddater = parseInt(createddater);
-                            
-                            if (icreateddater >= iitrdater && icreateddater <= iitredater) {
-                               newtestcounter++;
-                               newthisiteration = "<p style=color:green>New!</p>";
-                            };
- 
-                            // check if test was automated
-                            if (aTest.Method != "Manual") {
-                                automationcounter++;
-                            };
-
-                            // verify verdict for counter
-                            if (verdict == "Pass") {
-                               passcounter++;
-                            } else if (verdict == "Fail") {
-                               failcounter++;
-                            } else if (verdict == "<I>[No Results this Iteration]</I>") {
-                               notruncounter++;
-                            };
-
-                            //check number of automated and manual tests passing, failing, and not done
-                            if ((aTest.Method !== "Manual") && (verdict == "Pass")) {
-                                automatedpass++;
-                            } else if ((aTest.Method == "Manual") && (verdict == "Pass")) {
-                                manualpass++;
-                            };
-                            
-                            if ((aTest.Method !== "Manual") && (verdict == "Fail")) {
-                                automatedfail++;
-                            } else if ((aTest.Method == "Manual") && (verdict == "Fail")) {
-                                manualfail++;
-                            };
-                            
-                            if ((aTest.Method !== "Manual") && (verdict == "<I>[No Results this Iteration]</I>")) {
-                                automationnotdone++;
-                            } else if ((aTest.Method == "Manual") && (verdict == "<I>[No Results this Iteration]</I>")) {
-                                manualnotdone++;
-                            };
-
-                            //check number of defects entered this iteration per test
-                            nbrDDDefects = results.defectdensity.length;
-                            var testdefectcounter = 0;
-                            
-                            aTest.DefectIDs = "";                                                                                    
-                            for (var DDNdx = 0; DDNdx < nbrDDDefects; DDNdx++) {
-                               defecttestcaseID = results.defectdensity[DDNdx].TestCase || "noID";
-                                if (results.defectdensity[DDNdx].CreationDate >= results.iteration[0].StartDate) {
-                                    if (defecttestcaseID != "noID") {
-                                        if (results.defectdensity[DDNdx].TestCase.FormattedID == aTest.FormattedID) {
-                                            testdefectcounter++;
-                                            aTest.DefectIDs = aTest.DefectIDs + "<B>" + results.defectdensity[DDNdx].FormattedID + ". </B>" + results.defectdensity[DDNdx].Name + "<P>";
-                                            
-                                        };
-                                    };
-                                };
-                            };
-                            
-                            if (aTest.DefectIDs == "") {
-                                aTest.DefectIDs = "<I>{No Defects Found}</I>";
-                            };
-                            
-                            testRowInfo = {
-                                'Work Product Name': aStory.Name,
-                                'Work Product State': aStory.ScheduleState,
-                                'Plan Estimate': aStory.PlanEstimate,
-                                'Test Case Name': aTest.Name,
-                                'Test Case ID': aTest.FormattedID,
-                                'Project': aTest.Project.Name,
-                                'Work Product Type': type,
-                                'Last Run Date': run,
-                                'Last Verdict': verdict,
-                                'Test Method': aTest.Method,
-                                'New Test?': newthisiteration,
-                                '# Defects Found': testdefectcounter,
-                                'Defect IDs': aTest.DefectIDs
-                            };
-                            gTable.addRow(testRowInfo);
-                            
-                        };
-                        // end for each test case
-                    
-                    };
-                    // end for each story
-
-                    // localize defects
-                    gDefects = gDefects.concat(results.defects);
-                      
-                    // get # of DEFECTS
-                    nbrDefects = gDefects.length;
-               
-                    // loop through each defect
-                    for (var defectNdx = 0; defectNdx < nbrDefects; defectNdx++) {
-                        
-                        // localize the defect
-                        aDefect = gDefects[defectNdx];
-                          
-                        nbrTestCases = aDefect.TestCases.length;                                                               
-                     
-                        for (var testNdx = 0; testNdx < nbrTestCases; testNdx++) {
-                        
-                            newthisiteration = "";
-                            aTest = aDefect.TestCases[testNdx];
-                            type = "Defect";
-                            defecttests++;
-
-                            // add contents to null results
-                            aTest.LastRun = aTest.LastRun || "000000000000";
-                            aTest.LastVerdict = aTest.LastVerdict || "000000000000";
-
-                            //convert dates to something useful
-                            date1 = aTest.LastRun.substr(0,4);
-                            date2 = aTest.LastRun.substr(5,2);
-                            date3 = aTest.LastRun.substr(8,2);
-                            dater = date1+date2+date3;
-                            idater = parseInt(dater);
-
-                            // check if test was run during current iteration
-                            if (idater >= iitrdater && idater <= iitredater) {
-                               run = aTest.LastRun.substr(0,10);
-                               verdict = aTest.LastVerdict.substr(0,10);
-                            } else {
-                               run = "<I>[No Data this Iteration]</I>";
-                               verdict = "<I>[No Results this Iteration]</I>";
-                            };
-
-                            // check if test was created during current iteration
-                            createddate1 = aTest.CreationDate.substr(0,4);
-                            createddate2 = aTest.CreationDate.substr(5,2);
-                            createddate3 = aTest.CreationDate.substr(8,2);
-                            createddater = createddate1+createddate2+createddate3;
-                            icreateddater = parseInt(createddater);
-                            
-                            if (icreateddater >= iitrdater && icreateddater <= iitredater) {
-                               newtestcounter++;
-                               newthisiteration = "<p style=color:green>New!</p>";
-                            };
-
-                            // check if test was automated
-                            if (aTest.Method != "Manual") {
-                                automationcounter++;
-                            };
-
-                            // verify verdict for counter
-                            if (verdict == "Pass") {
-                               passcounter++;
-                            } else if (verdict == "Fail") {
-                               failcounter++;
-                            } else if (verdict == "<I>[No Results this Iteration]</I>") {
-                               notruncounter++;
-                            };
-
-                            //check number of automated and manual tests passing and not done
-                            if ((aTest.Method !== "Manual") && (verdict == "Pass")) {
-                                automatedpass++;
-                            } else if ((aTest.Method == "Manual") && (verdict == "Pass")) {
-                                manualpass++;
-                            };
-                            
-                            if ((aTest.Method !== "Manual") && (verdict == "Fail")) {
-                                automatedfail++;
-                            } else if ((aTest.Method == "Manual") && (verdict == "Fail")) {
-                                manualfail++;
-                            };
-                            
-                            if ((aTest.Method !== "Manual") && (verdict == "<I>[No Results this Iteration]</I>")) {
-                                automationnotdone++;
-                            } else if ((aTest.Method == "Manual") && (verdict == "<I>[No Results this Iteration]</I>")) {
-                                manualnotdone++;
-                            };
-
-                            //check number of defects entered this iteration per test
-                            nbrDDDefects = results.defectdensity.length;
-                            var testdefectcounter = 0;
-
-                            aTest.DefectIDs = "";                                                                 
-                            for (var DDNdx = 0; DDNdx < nbrDDDefects; DDNdx++) {
-                               defecttestcaseID = results.defectdensity[DDNdx].TestCase || "noID";
-                                if (results.defectdensity[DDNdx].CreationDate >= results.iteration[0].StartDate) {
-                                    if (defecttestcaseID != "noID") {
-                                        if (results.defectdensity[DDNdx].TestCase.FormattedID == aTest.FormattedID) {
-                                            testdefectcounter++;
-                                            aTest.DefectIDs = aTest.DefectIDs + "<B>" + results.defectdensity[DDNdx].FormattedID + ". </B>" + results.defectdensity[DDNdx].Name + "<P>";
-                                        };
-                                    };
-                                };
-                            };
-
-                            if (aTest.DefectIDs == "") {
-                                aTest.DefectIDs = "<I>{No Defects Found}</I>";
-                            };
-                                                                                       
-                            testRowInfo = {
-                                'Work Product Name': aDefect.Name,
-                                'Work Product State': aDefect.ScheduleState,
-                                'Plan Estimate': aDefect.PlanEstimate,
-                                'Test Case Name': aTest.Name,
-                                'Test Case ID': aTest.FormattedID,
-                                'Project': aTest.Project.Name,
-                                'Work Product Type': type,
-                                'Last Run Date': run,
-                                'Last Verdict': verdict,
-                                'Test Method': aTest.Method,
-                                'New Test?': newthisiteration,
-                                '# Defects Found': testdefectcounter,
-                                'Defect IDs': aTest.DefectIDs
-                            };
-                            gTable.addRow(testRowInfo);
-                           
-                        };
-                        // end for each test case
-                    
-                    };
-                    // end for each DEFECT
-
-                    // localize test sets
-                    gTestSets= gTestSets.concat(results.testset);
-                      
-                    // get # of test sets
-                    nbrTestSets = gTestSets.length;
-
-                    // loop through each test set
-                    for (var testsetNdx = 0; testsetNdx < nbrTestSets; testsetNdx++) {
-                        
-                        // localize the test sets
-                        aTestSet = gTestSets[testsetNdx];
-                          
-                        nbrTestCases = aTestSet.TestCases.length;
-                     
-                        for (var testNdx = 0; testNdx < nbrTestCases; testNdx++) {
-                        
-                            newthisiteration = "";
-                            aTest = aTestSet.TestCases[testNdx];
-                            type = "Test Set";
-                            settests++;
-
-                            // add contents to null results
-                            aTest.LastRun = aTest.LastRun || "000000000000";
-                            aTest.LastVerdict = aTest.LastVerdict || "000000000000";
-
-                            //convert dates to something useful
-                            date1 = aTest.LastRun.substr(0,4);
-                            date2 = aTest.LastRun.substr(5,2);
-                            date3 = aTest.LastRun.substr(8,2);
-                            dater = date1+date2+date3;
-                            idater = parseInt(dater);
-
-                            // check if test was run during current iteration
-                            if (idater >= iitrdater && idater <= iitredater) {
-                               run = aTest.LastRun.substr(0,10);
-                               verdict = aTest.LastVerdict.substr(0,10);
-                            } else {
-                               run = "<I>[No Data this Iteration]</I>";
-                               verdict = "<I>[No Results this Iteration]</I>";
-                            };
-
-                            // check if test was created during current iteration
-                            createddate1 = aTest.CreationDate.substr(0,4);
-                            createddate2 = aTest.CreationDate.substr(5,2);
-                            createddate3 = aTest.CreationDate.substr(8,2);
-                            createddater = createddate1+createddate2+createddate3;
-                            icreateddater = parseInt(createddater);
-                            
-                            if (icreateddater >= iitrdater && icreateddater <= iitredater) {
-                               newtestcounter++;
-                               newthisiteration = "<p style=color:green>New!</p>";
-                            };
-
-                            // check if test was automated
-                            if (aTest.Method != "Manual") {
-                                automationcounter++;
-                            };
-                           
-                            // verify verdict for counter
-                            if (verdict == "Pass") {
-                               passcounter++;
-                            } else if (verdict == "Fail") {
-                               failcounter++;
-                            } else if (verdict == "<I>[No Results this Iteration]</I>") {
-                               notruncounter++;
-                            };
-
-                            //check number of automated and manual tests passing and not done
-                            if ((aTest.Method !== "Manual") && (verdict == "Pass")) {
-                                automatedpass++;
-                            } else if ((aTest.Method == "Manual") && (verdict == "Pass")) {
-                                manualpass++;
-                            };
-                            
-                            if ((aTest.Method !== "Manual") && (verdict == "Fail")) {
-                                automatedfail++;
-                            } else if ((aTest.Method == "Manual") && (verdict == "Fail")) {
-                                manualfail++;
-                            };
-                            
-                            if ((aTest.Method !== "Manual") && (verdict == "<I>[No Results this Iteration]</I>")) {
-                                automationnotdone++;
-                            } else if ((aTest.Method == "Manual") && (verdict == "<I>[No Results this Iteration]</I>")) {
-                                manualnotdone++;
-                            };
-
-                            //check number of defects entered this iteration per test
-                            nbrDDDefects = results.defectdensity.length;
-                            var testdefectcounter = 0;
-
-                            aTest.DefectIDs = "";                                                                            
-                            for (var DDNdx = 0; DDNdx < nbrDDDefects; DDNdx++) {
-                               defecttestcaseID = results.defectdensity[DDNdx].TestCase || "noID";
-                                if (results.defectdensity[DDNdx].CreationDate >= results.iteration[0].StartDate) {
-                                    if (defecttestcaseID != "noID") {
-                                        if (results.defectdensity[DDNdx].TestCase.FormattedID == aTest.FormattedID) {
-                                            testdefectcounter++;
-                                            aTest.DefectIDs = aTest.DefectIDs + "<B>" + results.defectdensity[DDNdx].FormattedID + ". </B>" + results.defectdensity[DDNdx].Name + "<P>";
-                                        };
-                                    };
-                                };
-                            };
-
-                            if (aTest.DefectIDs == "") {
-                                aTest.DefectIDs = "<I>{No Defects Found}</I>";
-                            };
-                                                                                    
-                            testRowInfo = {
-                                'Work Product Name': aTestSet.Name,
-                                'Work Product State': aTestSet.ScheduleState,
-                                'Plan Estimate': aTestSet.PlanEstimate,
-                                'Test Case Name': aTest.Name,
-                                'Test Case ID': aTest.FormattedID,
-                                'Project': aTest.Project.Name,
-                                'Work Product Type': type,
-                                'Last Run Date': run,
-                                'Last Verdict': verdict,
-                                'Test Method': aTest.Method,
-                                'New Test?': newthisiteration,
-                                '# Defects Found': testdefectcounter,
-                                'Defect IDs': aTest.DefectIDs
-                            };
-                            gTable.addRow(testRowInfo);
-                           
-                        };
-                        // end for each test case
-
-                    };
-                   
-                    // end for each test set
-                       
-                    // display the summary and populated table
-                    document.getElementById('summary').innerHTML = ("<P><font color = red>Note: This app generates test case result data for current and future iterations - it is not for historical test case verdict reference.</font><BR>");
-                    
-                    gTable.display(tableDiv);
-                    
-                };
-                // end function
-
-        //format date for defect density query
-        var dateFormat = function () {
-            var	token = /d{1,4}|m{1,4}|yy(?:yy)?|([HhMsTt])\1?|[LloSZ]|"[^"]*"|'[^']*'/g,
-            timezone = /\b(?:[PMCEA][SDP]T|(?:Pacific|Mountain|Central|Eastern|Atlantic) (?:Standard|Daylight|Prevailing) Time|(?:GMT|UTC)(?:[-+]\d{4})?)\b/g,
-            timezoneClip = /[^-+\dA-Z]/g,
-            pad = function (val, len) {
-                val = String(val);
-                len = len || 2;
-                while (val.length < len) val = "0" + val;
-                return val;
-            };
-
-            //supporting functions are cached through closure
-        return function (date, mask, utc) {
-		var dF = dateFormat;
-
-		// You can't provide utc if you skip other args (use the "UTC:" mask prefix)
-		if (arguments.length == 1 && Object.prototype.toString.call(date) == "[object String]" && !/\d/.test(date)) {
-			mask = date;
-			date = undefined;
-		}
-
-		// Passing date through Date applies Date.parse, if necessary
-		date = date ? new Date(date) : new Date;
-		if (isNaN(date)) throw SyntaxError("invalid date");
-
-		mask = String(dF.masks[mask] || mask || dF.masks["default"]);
-
-		// Allow setting the utc argument via the mask
-		if (mask.slice(0, 4) == "UTC:") {
-			mask = mask.slice(4);
-			utc = true;
-		}
-
-		var	_ = utc ? "getUTC" : "get",
-			d = date[_ + "Date"](),
-			D = date[_ + "Day"](),
-			m = date[_ + "Month"](),
-			y = date[_ + "FullYear"](),
-			H = date[_ + "Hours"](),
-			M = date[_ + "Minutes"](),
-			s = date[_ + "Seconds"](),
-			L = date[_ + "Milliseconds"](),
-			o = utc ? 0 : date.getTimezoneOffset(),
-			flags = {
-				d:    d,
-				dd:   pad(d),
-				ddd:  dF.i18n.dayNames[D],
-				dddd: dF.i18n.dayNames[D + 7],
-				m:    m + 1,
-				mm:   pad(m + 1),
-				mmm:  dF.i18n.monthNames[m],
-				mmmm: dF.i18n.monthNames[m + 12],
-				yy:   String(y).slice(2),
-				yyyy: y,
-				h:    H % 12 || 12,
-				hh:   pad(H % 12 || 12),
-				H:    H,
-				HH:   pad(H),
-				M:    M,
-				MM:   pad(M),
-				s:    s,
-				ss:   pad(s),
-				l:    pad(L, 3),
-				L:    pad(L > 99 ? Math.round(L / 10) : L),
-				t:    H < 12 ? "a"  : "p",
-				tt:   H < 12 ? "am" : "pm",
-				T:    H < 12 ? "A"  : "P",
-				TT:   H < 12 ? "AM" : "PM",
-				Z:    utc ? "UTC" : (String(date).match(timezone) || [""]).pop().replace(timezoneClip, ""),
-				o:    (o > 0 ? "-" : "+") + pad(Math.floor(Math.abs(o) / 60) * 100 + Math.abs(o) % 60, 4),
-				S:    ["th", "st", "nd", "rd"][d % 10 > 3 ? 0 : (d % 100 - d % 10 != 10) * d % 10]
-			};
-
-		return mask.replace(token, function ($0) {
-			return $0 in flags ? flags[$0] : $0.slice(1, $0.length - 1);
-		});
-	};
-    }();
-
-    // Some common format strings
-    dateFormat.masks = {
-        "default":      "ddd mmm dd yyyy HH:MM:ss",
-        shortDate:      "m/d/yy",
-        mediumDate:     "mmm d, yyyy",
-        longDate:       "mmmm d, yyyy",
-        fullDate:       "dddd, mmmm d, yyyy",
-        shortTime:      "h:MM TT",
-        mediumTime:     "h:MM:ss TT",
-        longTime:       "h:MM:ss TT Z",
-        isoDate:        "yyyy-mm-dd",
-        isoTime:        "HH:MM:ss",
-        isoDateTime:    "yyyy-mm-dd'T'HH:MM:ss",
-        isoUtcDateTime: "UTC:yyyy-mm-dd'T'HH:MM:ss'Z'"
-    };
-
-    // Internationalization strings
-    dateFormat.i18n = {
-        dayNames: [
-            "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
-            "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
-        ],
-        monthNames: [
-            "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-            "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"
-        ]
-    };
-
-        // For convenience...
-        Date.prototype.format = function (mask, utc) {
-        return dateFormat(this, mask, utc);
-    };                
-                
-                function init(){
-                
-                    // Setup Iteration Dropdown
-                    var iterationDropdownConfig = {};
-                    gIterationDropdown = new rally.sdk.ui.IterationDropdown(iterationDropdownConfig, rallyDataSource);
-                    
-                    gIterationDropdown.display("iteration_selection", onIterationSelected);
-                    
-                }
-                
-                // call querying function
-                init();
-                
-            }
-            
-            rally.addOnLoad(tableExample);
-        </script>
-    </head>
-    <body>
-        <div id="iteration_selection">
-        </div><P>
-        <div id="summary">
-        </div><P>
-        <div id="table_output">
-        </div>
-    </body>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta http-equiv="Content-Style-Type" content="text/css">
+  <title></title>
+  <meta name="Generator" content="Cocoa HTML Writer">
+  <meta name="CocoaVersion" content="1504.82">
+  <style type="text/css">
+    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; line-height: 14.0px; font: 12.0px Helvetica; color: #000000; -webkit-text-stroke: #000000}
+    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; line-height: 14.0px; font: 12.0px Helvetica; color: #000000; -webkit-text-stroke: #000000; min-height: 14.0px}
+    span.s1 {font-kerning: none}
+    span.Apple-tab-span {white-space:pre}
+  </style>
+</head>
+<body>
+<p class="p1"><span class="s1">&lt;!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"&gt;</span></p>
+<p class="p1"><span class="s1">&lt;!-- Copyright (c) 2010<span class="Apple-converted-space">  </span>Rally Software Development Corp.<span class="Apple-converted-space">  </span>All rights reserved --&gt;</span></p>
+<p class="p1"><span class="s1">&lt;html&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;head&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;title&gt;All Test Cases per Iteration no Summary&lt;/title&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;meta name="Name" content="Test Cases Per Iteration no Summary" /&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;meta name="Version" content="1.4" /&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;meta name="Vendor" content="Rally Software" /&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;meta name="Author" content="Joel K" /&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;script src='/apps/1.31/sdk.js' type='text/javascript'&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;/script&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;script type="text/javascript"&gt;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// This app queries iteratively all test cases associated to user stories and defects.<span class="Apple-converted-space">  </span>It also includes those in scheduled test sets.<span class="Apple-converted-space">  </span>Version 1.4 adds Defect ID's and Names associated to test cases for current iteration.</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Version 1.5 adds closed defects to defect IDs's and names associated. Aaron Rusty Lloyd (ARL) - 14 April 2017</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// declare global variables</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>var gStories = new Array();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>var gIterationDropdown;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>var gTable;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>function tableExample(){</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>var rallyDataSource = new rally.sdk.data.RallyDataSource('__WORKSPACE_OID__', '__PROJECT_OID__', '__PROJECT_SCOPING_UP__', '__PROJECT_SCOPING_DOWN__');</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>function onIterationSelected(){</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var queryStr;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var queryArray = [];</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var date = new Date();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var defect_startdate = new Date(</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>date.getFullYear(),<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>date.getMonth(),<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>date.getDate() - 35,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>date.getHours(),</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>date.getMinutes(),</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>date.getSeconds(),</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>date.getMilliseconds()</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var defect_startdate = defect_startdate.format("isoUtcDateTime");</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// clean out any old stuff from prior runs</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>gStories = [];</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>gDefects = [];</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>gTestSets = [];</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>if (gTable != null)<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>gTable.destroy();</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>dojo.empty(dojo.byId('table_output'));</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// setup query strings</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>queryStr = "(Iteration.Name = " + "\"" + gIterationDropdown.getSelectedName() + "\")";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>itrquery = "(Name = " + "\"" + gIterationDropdown.getSelectedName() + "\")";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>defectdensityquery = "(OpenedDate &gt;= " + "\""+ defect_startdate + "\")";</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// setup story query</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>queryArray[0] = {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>key: 'stories',</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>type: 'HierarchicalRequirement',</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>query: queryStr,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>fetch: 'FormattedID,Name,ScheduleState,PlanEstimate,Project,State,TestCases,LastVerdict,LastRun,CreationDate,Method'</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// setup defect query</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>queryArray[1] = {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>key: 'defects',</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>type: 'Defect',</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>query: queryStr,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>fetch: 'FormattedID,Name,ScheduleState,PlanEstimate,Project,State,TestCases,LastVerdict,LastRun,CreationDate,Method'</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// setup test set query</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>queryArray[2] = {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>key: 'testset',</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>type: 'TestSet',</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>query: queryStr,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>fetch: 'FormattedID,Name,ScheduleState,PlanEstimate,Project,TestCases,LastVerdict,LastRun,CreationDate,Method'</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// setup iteration query</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>queryArray[3] = {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>key: 'iteration',</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>type: 'Iteration',</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>query: itrquery,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>fetch: 'StartDate,EndDate'</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                                        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// setup defect density query (grab all defects entered last 35 days)</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>queryArray[4] = {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>key: 'defectdensity',</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>type: 'Defect',</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>//query: defectdensityquery,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>fetch: 'FormattedID,Name,TestCase,State,CreationDate' // Updated defectdensityquery to add State ARL 4-14</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}; <span class="Apple-converted-space">                                       </span></span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                                        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// execute query</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>rallyDataSource.findAll(queryArray, populateTable);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>function populateTable(results){</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.log(results);<span class="Apple-converted-space">   </span></span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                             </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var nbrStories;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var nbrDefects;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var nbrTestCases;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var nbrTestSets;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var aStory;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var aDefect;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var aTest;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var aTestSet;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var type;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var alltests = 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var storytests = 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var defecttests = 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var settests = 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var automationcounter = 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var newtestcounter = 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var passcounter = 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var failcounter = 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var notruncounter = 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var automatedpass = 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var automationnotdone = 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var manualpass = 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var manualnotdone = 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var automatedfail = 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var manualfail = 0;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var tableDiv;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var tableConfig;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var testRowInfo;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// create the output table</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>tableDiv = document.getElementById('table_output');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>tableConfig = {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>columns: [{</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>key: 'New Test?'</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>//width: "5%"</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}, { <span class="Apple-converted-space">                           </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>key: 'Test Case ID'<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>//width: "5%"</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}, {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>key: 'Test Case Name'<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>//width: "25%"</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}, {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>key: 'Last Run Date'<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>//width: "10%"</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}, {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>key: 'Last Verdict'<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>//width: "10%"</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}, {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>key: 'Test Method'<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>//width: "10%"</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}, {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>key: 'Project'<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>//width: "10%"</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}, {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>key: 'Work Product Type'<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>//width: "10%"</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}, {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>key: 'Work Product Name'<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>//width: "20%"</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}, {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>key: 'Work Product State'</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>//width: "10%"</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}, {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>key: '# Defects Found'</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>//width: "10%"</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}, {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>key: '# Closed Defects' //added by ARL 4-14</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>//width: "5%"</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}, {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>key: 'Defect IDs'</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>//width: "5%"</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}]</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>gTable = new rally.sdk.ui.Table(tableConfig);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// localize stories</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>gStories = gStories.concat(results.stories);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// get # of stories</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>nbrStories = gStories.length;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// loop through each story</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>for (var storyNdx = 0; storyNdx &lt; nbrStories; storyNdx++) {</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>// localize the story</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>aStory = gStories[storyNdx];</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                          </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>nbrTestCases = aStory.TestCases.length;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                                                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>for (var testNdx = 0; testNdx &lt; nbrTestCases; testNdx++) {</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>newthisiteration = "";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>aTest = aStory.TestCases[testNdx];</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>type = "Story";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>storytests++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>// add contents to null results</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>aTest.LastRun = aTest.LastRun || "000000000000";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>aTest.LastVerdict = aTest.LastVerdict || "000000000000";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>//convert dates to something useful</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>date1 = aTest.LastRun.substr(0,4);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>date2 = aTest.LastRun.substr(5,2);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>date3 = aTest.LastRun.substr(8,2);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>dater = date1+date2+date3;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>idater = parseInt(dater);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>itrdate1 = results.iteration[0].StartDate.substr(0,4);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>var itrdate2 = results.iteration[0].StartDate.substr(5,2);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>var itrdate3 = results.iteration[0].StartDate.substr(8,2);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>var itrdater = itrdate1+itrdate2+itrdate3;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>iitrdater = parseInt(itrdater);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>var itredate1 = results.iteration[0].EndDate.substr(0,4);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>var itredate2 = results.iteration[0].EndDate.substr(5,2);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>var itredate3 = results.iteration[0].EndDate.substr(8,2);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>var itredater = itredate1+itredate2+itredate3;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>iitredater = parseInt(itredater);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>// check if test was run during current iteration</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if (idater &gt;= iitrdater &amp;&amp; idater &lt;= iitredater) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>run = aTest.LastRun.substr(0,10);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>verdict = aTest.LastVerdict.substr(0,10);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>} else {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>run = "&lt;I&gt;[No Data this Iteration]&lt;/I&gt;";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>verdict = "&lt;I&gt;[No Results this Iteration]&lt;/I&gt;";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>// check if test was created during current iteration</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>createddate1 = aTest.CreationDate.substr(0,4);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>createddate2 = aTest.CreationDate.substr(5,2);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>createddate3 = aTest.CreationDate.substr(8,2);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>createddater = createddate1+createddate2+createddate3;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>icreateddater = parseInt(createddater);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if (icreateddater &gt;= iitrdater &amp;&amp; icreateddater &lt;= iitredater) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>newtestcounter++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>newthisiteration = "&lt;p style=color:green&gt;New!&lt;/p&gt;";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>// check if test was automated</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if (aTest.Method != "Manual") {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>automationcounter++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>// verify verdict for counter</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if (verdict == "Pass") {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>passcounter++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>} else if (verdict == "Fail") {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>failcounter++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>} else if (verdict == "&lt;I&gt;[No Results this Iteration]&lt;/I&gt;") {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>notruncounter++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>//check number of automated and manual tests passing, failing, and not done</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if ((aTest.Method !== "Manual") &amp;&amp; (verdict == "Pass")) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>automatedpass++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>} else if ((aTest.Method == "Manual") &amp;&amp; (verdict == "Pass")) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>manualpass++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if ((aTest.Method !== "Manual") &amp;&amp; (verdict == "Fail")) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>automatedfail++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>} else if ((aTest.Method == "Manual") &amp;&amp; (verdict == "Fail")) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>manualfail++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if ((aTest.Method !== "Manual") &amp;&amp; (verdict == "&lt;I&gt;[No Results this Iteration]&lt;/I&gt;")) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>automationnotdone++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>} else if ((aTest.Method == "Manual") &amp;&amp; (verdict == "&lt;I&gt;[No Results this Iteration]&lt;/I&gt;")) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>manualnotdone++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>//check number of defects entered this iteration per test</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>nbrDDDefects = results.defectdensity.length;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>var testdefectcounter = 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>var testcloseddefectcounter = 0; //added for # of closed defects ARL 4-14</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>aTest.DefectIDs = ""; <span class="Apple-converted-space">                                                                                   </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>for (var DDNdx = 0; DDNdx &lt; nbrDDDefects; DDNdx++) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>defecttestcaseID = results.defectdensity[DDNdx].TestCase || "noID";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>if (results.defectdensity[DDNdx].CreationDate &gt;= results.iteration[0].StartDate) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                    </span>if (defecttestcaseID != "noID") {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                        </span>if (results.defectdensity[DDNdx].TestCase.FormattedID == aTest.FormattedID) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                            </span>testdefectcounter++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                            </span>if (results.defectdensity[DDNdx].State == "Closed") { // Added by ARL 4-14</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                            </span>testcloseddefectcounter++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                            </span>aTest.DefectIDs = aTest.DefectIDs + "&lt;B&gt;" + results.defectdensity[DDNdx].FormattedID + ". &lt;/B&gt;" + results.defectdensity[DDNdx].Name + "&lt;P&gt;";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                            </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                        </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                    </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if (aTest.DefectIDs == "") {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>aTest.DefectIDs = "&lt;I&gt;{No Defects Found}&lt;/I&gt;";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>testRowInfo = {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Work Product Name': aStory.Name,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Work Product State': aStory.ScheduleState,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Plan Estimate': aStory.PlanEstimate,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Test Case Name': aTest.Name,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Test Case ID': aTest.FormattedID,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Project': aTest.Project.Name,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Work Product Type': type,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Last Run Date': run,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Last Verdict': verdict,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Test Method': aTest.Method,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'New Test?': newthisiteration,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'# Defects Found': testdefectcounter,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'# Closed Defects': testcloseddefectcounter, //Added by ARL 4-14</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Defect IDs': aTest.DefectIDs</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>gTable.addRow(testRowInfo);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>// end for each test case</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// end for each story</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// localize defects</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>gDefects = gDefects.concat(results.defects);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                      </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// get # of DEFECTS</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>nbrDefects = gDefects.length;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">               </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// loop through each defect</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>for (var defectNdx = 0; defectNdx &lt; nbrDefects; defectNdx++) {</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>// localize the defect</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>aDefect = gDefects[defectNdx];</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                          </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>nbrTestCases = aDefect.TestCases.length;<span class="Apple-converted-space">                                                               </span></span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                     </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>for (var testNdx = 0; testNdx &lt; nbrTestCases; testNdx++) {</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>newthisiteration = "";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>aTest = aDefect.TestCases[testNdx];</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>type = "Defect";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>defecttests++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>// add contents to null results</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>aTest.LastRun = aTest.LastRun || "000000000000";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>aTest.LastVerdict = aTest.LastVerdict || "000000000000";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>//convert dates to something useful</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>date1 = aTest.LastRun.substr(0,4);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>date2 = aTest.LastRun.substr(5,2);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>date3 = aTest.LastRun.substr(8,2);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>dater = date1+date2+date3;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>idater = parseInt(dater);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>// check if test was run during current iteration</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if (idater &gt;= iitrdater &amp;&amp; idater &lt;= iitredater) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>run = aTest.LastRun.substr(0,10);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>verdict = aTest.LastVerdict.substr(0,10);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>} else {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>run = "&lt;I&gt;[No Data this Iteration]&lt;/I&gt;";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>verdict = "&lt;I&gt;[No Results this Iteration]&lt;/I&gt;";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>// check if test was created during current iteration</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>createddate1 = aTest.CreationDate.substr(0,4);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>createddate2 = aTest.CreationDate.substr(5,2);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>createddate3 = aTest.CreationDate.substr(8,2);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>createddater = createddate1+createddate2+createddate3;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>icreateddater = parseInt(createddater);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if (icreateddater &gt;= iitrdater &amp;&amp; icreateddater &lt;= iitredater) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>newtestcounter++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>newthisiteration = "&lt;p style=color:green&gt;New!&lt;/p&gt;";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>// check if test was automated</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if (aTest.Method != "Manual") {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>automationcounter++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>// verify verdict for counter</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if (verdict == "Pass") {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>passcounter++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>} else if (verdict == "Fail") {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>failcounter++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>} else if (verdict == "&lt;I&gt;[No Results this Iteration]&lt;/I&gt;") {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>notruncounter++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>//check number of automated and manual tests passing and not done</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if ((aTest.Method !== "Manual") &amp;&amp; (verdict == "Pass")) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>automatedpass++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>} else if ((aTest.Method == "Manual") &amp;&amp; (verdict == "Pass")) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>manualpass++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if ((aTest.Method !== "Manual") &amp;&amp; (verdict == "Fail")) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>automatedfail++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>} else if ((aTest.Method == "Manual") &amp;&amp; (verdict == "Fail")) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>manualfail++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if ((aTest.Method !== "Manual") &amp;&amp; (verdict == "&lt;I&gt;[No Results this Iteration]&lt;/I&gt;")) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>automationnotdone++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>} else if ((aTest.Method == "Manual") &amp;&amp; (verdict == "&lt;I&gt;[No Results this Iteration]&lt;/I&gt;")) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>manualnotdone++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>//check number of defects entered this iteration per test</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>nbrDDDefects = results.defectdensity.length;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>var testdefectcounter = 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>var testcloseddefectcounter = 0; //added for # of closed defects ARL 4-14</span></p>
+<p class="p1"><span class="s1"><br>
+</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>aTest.DefectIDs = "";<span class="Apple-converted-space">                                                                 </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>for (var DDNdx = 0; DDNdx &lt; nbrDDDefects; DDNdx++) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>defecttestcaseID = results.defectdensity[DDNdx].TestCase || "noID";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>if (results.defectdensity[DDNdx].CreationDate &gt;= results.iteration[0].StartDate) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                    </span>if (defecttestcaseID != "noID") {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                        </span>if (results.defectdensity[DDNdx].TestCase.FormattedID == aTest.FormattedID) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                            </span>testdefectcounter++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                            </span>if (results.defectdensity[DDNdx].State == "Closed") { // Added by ARL 4-14</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                            </span>aTest.DefectIDs = aTest.DefectIDs + "&lt;B&gt;" + results.defectdensity[DDNdx].FormattedID + ". &lt;/B&gt;" + results.defectdensity[DDNdx].Name + "&lt;P&gt;";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                           </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                        </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                    </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if (aTest.DefectIDs == "") {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>aTest.DefectIDs = "&lt;I&gt;{No Defects Found}&lt;/I&gt;";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                                                                                       </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>testRowInfo = {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Work Product Name': aDefect.Name,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Work Product State': aDefect.ScheduleState,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Plan Estimate': aDefect.PlanEstimate,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Test Case Name': aTest.Name,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Test Case ID': aTest.FormattedID,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Project': aTest.Project.Name,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Work Product Type': type,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Last Run Date': run,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Last Verdict': verdict,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Test Method': aTest.Method,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'New Test?': newthisiteration,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'# Defects Found': testdefectcounter,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'# Closed Defects': testcloseddefectcounter, //Added by ARL 4-14</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Defect IDs': aTest.DefectIDs</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>gTable.addRow(testRowInfo);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                           </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>// end for each test case</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// end for each DEFECT</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// localize test sets</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>gTestSets= gTestSets.concat(results.testset);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                      </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// get # of test sets</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>nbrTestSets = gTestSets.length;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// loop through each test set</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>for (var testsetNdx = 0; testsetNdx &lt; nbrTestSets; testsetNdx++) {</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>// localize the test sets</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>aTestSet = gTestSets[testsetNdx];</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                          </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>nbrTestCases = aTestSet.TestCases.length;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                     </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>for (var testNdx = 0; testNdx &lt; nbrTestCases; testNdx++) {</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>newthisiteration = "";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>aTest = aTestSet.TestCases[testNdx];</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>type = "Test Set";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>settests++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>// add contents to null results</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>aTest.LastRun = aTest.LastRun || "000000000000";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>aTest.LastVerdict = aTest.LastVerdict || "000000000000";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>//convert dates to something useful</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>date1 = aTest.LastRun.substr(0,4);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>date2 = aTest.LastRun.substr(5,2);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>date3 = aTest.LastRun.substr(8,2);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>dater = date1+date2+date3;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>idater = parseInt(dater);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>// check if test was run during current iteration</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if (idater &gt;= iitrdater &amp;&amp; idater &lt;= iitredater) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>run = aTest.LastRun.substr(0,10);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>verdict = aTest.LastVerdict.substr(0,10);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>} else {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>run = "&lt;I&gt;[No Data this Iteration]&lt;/I&gt;";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>verdict = "&lt;I&gt;[No Results this Iteration]&lt;/I&gt;";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>// check if test was created during current iteration</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>createddate1 = aTest.CreationDate.substr(0,4);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>createddate2 = aTest.CreationDate.substr(5,2);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>createddate3 = aTest.CreationDate.substr(8,2);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>createddater = createddate1+createddate2+createddate3;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>icreateddater = parseInt(createddater);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if (icreateddater &gt;= iitrdater &amp;&amp; icreateddater &lt;= iitredater) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>newtestcounter++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>newthisiteration = "&lt;p style=color:green&gt;New!&lt;/p&gt;";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>// check if test was automated</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if (aTest.Method != "Manual") {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>automationcounter++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                           </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>// verify verdict for counter</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if (verdict == "Pass") {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>passcounter++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>} else if (verdict == "Fail") {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>failcounter++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>} else if (verdict == "&lt;I&gt;[No Results this Iteration]&lt;/I&gt;") {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>notruncounter++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>//check number of automated and manual tests passing and not done</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if ((aTest.Method !== "Manual") &amp;&amp; (verdict == "Pass")) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>automatedpass++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>} else if ((aTest.Method == "Manual") &amp;&amp; (verdict == "Pass")) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>manualpass++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if ((aTest.Method !== "Manual") &amp;&amp; (verdict == "Fail")) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>automatedfail++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>} else if ((aTest.Method == "Manual") &amp;&amp; (verdict == "Fail")) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>manualfail++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if ((aTest.Method !== "Manual") &amp;&amp; (verdict == "&lt;I&gt;[No Results this Iteration]&lt;/I&gt;")) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>automationnotdone++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>} else if ((aTest.Method == "Manual") &amp;&amp; (verdict == "&lt;I&gt;[No Results this Iteration]&lt;/I&gt;")) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>manualnotdone++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>//check number of defects entered this iteration per test</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>nbrDDDefects = results.defectdensity.length;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>var testdefectcounter = 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>var testcloseddefectcounter = 0; //added for # of closed defects ARL 4-14</span></p>
+<p class="p1"><span class="s1"><br>
+</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>aTest.DefectIDs = ""; <span class="Apple-converted-space">                                                                           </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>for (var DDNdx = 0; DDNdx &lt; nbrDDDefects; DDNdx++) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                               </span>defecttestcaseID = results.defectdensity[DDNdx].TestCase || "noID";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>if (results.defectdensity[DDNdx].CreationDate &gt;= results.iteration[0].StartDate) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                    </span>if (defecttestcaseID != "noID") {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                        </span>if (results.defectdensity[DDNdx].TestCase.FormattedID == aTest.FormattedID) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                            </span>testdefectcounter++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                            </span>if (results.defectdensity[DDNdx].State == "Closed") { // Added by ARL 4-14</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                            </span>testcloseddefectcounter++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                            </span>aTest.DefectIDs = aTest.DefectIDs + "&lt;B&gt;" + results.defectdensity[DDNdx].FormattedID + ". &lt;/B&gt;" + results.defectdensity[DDNdx].Name + "&lt;P&gt;";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                           </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                        </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                    </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if (aTest.DefectIDs == "") {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>aTest.DefectIDs = "&lt;I&gt;{No Defects Found}&lt;/I&gt;";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                                                                                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>testRowInfo = {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Work Product Name': aTestSet.Name,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Work Product State': aTestSet.ScheduleState,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Plan Estimate': aTestSet.PlanEstimate,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Test Case Name': aTest.Name,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Test Case ID': aTest.FormattedID,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Project': aTest.Project.Name,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Work Product Type': type,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Last Run Date': run,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Last Verdict': verdict,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Test Method': aTest.Method,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'New Test?': newthisiteration,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'# Defects Found': testdefectcounter,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'# Closed Defects': testcloseddefectcounter, //Added by ARL 4-14</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>'Defect IDs': aTest.DefectIDs</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>gTable.addRow(testRowInfo);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                           </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>// end for each test case</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                   </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// end for each test set</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                       </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// display the summary and populated table</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>document.getElementById('summary').innerHTML = ("&lt;P&gt;&lt;font color = red&gt;Note: This app generates test case result data for current and future iterations - it is not for historical test case verdict reference.&lt;/font&gt;&lt;BR&gt;");</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>gTable.display(tableDiv);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// end function</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>//format date for defect density query</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>var dateFormat = function () {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>var<span class="Apple-tab-span">	</span>token = /d{1,4}|m{1,4}|yy(?:yy)?|([HhMsTt])\1?|[LloSZ]|"[^"]*"|'[^']*'/g,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>timezone = /\b(?:[PMCEA][SDP]T|(?:Pacific|Mountain|Central|Eastern|Atlantic) (?:Standard|Daylight|Prevailing) Time|(?:GMT|UTC)(?:[-+]\d{4})?)\b/g,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>timezoneClip = /[^-+\dA-Z]/g,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>pad = function (val, len) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>val = String(val);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>len = len || 2;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>while (val.length &lt; len) val = "0" + val;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>return val;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>//supporting functions are cached through closure</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>return function (date, mask, utc) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>var dF = dateFormat;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>// You can't provide utc if you skip other args (use the "UTC:" mask prefix)</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>if (arguments.length == 1 &amp;&amp; Object.prototype.toString.call(date) == "[object String]" &amp;&amp; !/\d/.test(date)) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>mask = date;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>date = undefined;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>// Passing date through Date applies Date.parse, if necessary</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>date = date ? new Date(date) : new Date;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>if (isNaN(date)) throw SyntaxError("invalid date");</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>mask = String(dF.masks[mask] || mask || dF.masks["default"]);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>// Allow setting the utc argument via the mask</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>if (mask.slice(0, 4) == "UTC:") {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>mask = mask.slice(4);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>utc = true;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>var<span class="Apple-tab-span">	</span>_ = utc ? "getUTC" : "get",</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>d = date[_ + "Date"](),</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>D = date[_ + "Day"](),</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>m = date[_ + "Month"](),</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>y = date[_ + "FullYear"](),</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>H = date[_ + "Hours"](),</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>M = date[_ + "Minutes"](),</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>s = date[_ + "Seconds"](),</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>L = date[_ + "Milliseconds"](),</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>o = utc ? 0 : date.getTimezoneOffset(),</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>flags = {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>d:<span class="Apple-converted-space">    </span>d,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>dd: <span class="Apple-converted-space">  </span>pad(d),</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>ddd:<span class="Apple-converted-space">  </span>dF.i18n.dayNames[D],</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>dddd: dF.i18n.dayNames[D + 7],</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>m:<span class="Apple-converted-space">    </span>m + 1,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>mm: <span class="Apple-converted-space">  </span>pad(m + 1),</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>mmm:<span class="Apple-converted-space">  </span>dF.i18n.monthNames[m],</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>mmmm: dF.i18n.monthNames[m + 12],</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>yy: <span class="Apple-converted-space">  </span>String(y).slice(2),</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>yyyy: y,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>h:<span class="Apple-converted-space">    </span>H % 12 || 12,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>hh: <span class="Apple-converted-space">  </span>pad(H % 12 || 12),</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>H:<span class="Apple-converted-space">    </span>H,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>HH: <span class="Apple-converted-space">  </span>pad(H),</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>M:<span class="Apple-converted-space">    </span>M,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>MM: <span class="Apple-converted-space">  </span>pad(M),</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>s:<span class="Apple-converted-space">    </span>s,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>ss: <span class="Apple-converted-space">  </span>pad(s),</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>l:<span class="Apple-converted-space">    </span>pad(L, 3),</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>L:<span class="Apple-converted-space">    </span>pad(L &gt; 99 ? Math.round(L / 10) : L),</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>t:<span class="Apple-converted-space">    </span>H &lt; 12 ? "a"<span class="Apple-converted-space">  </span>: "p",</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>tt: <span class="Apple-converted-space">  </span>H &lt; 12 ? "am" : "pm",</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>T:<span class="Apple-converted-space">    </span>H &lt; 12 ? "A"<span class="Apple-converted-space">  </span>: "P",</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>TT: <span class="Apple-converted-space">  </span>H &lt; 12 ? "AM" : "PM",</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>Z:<span class="Apple-converted-space">    </span>utc ? "UTC" : (String(date).match(timezone) || [""]).pop().replace(timezoneClip, ""),</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>o:<span class="Apple-converted-space">    </span>(o &gt; 0 ? "-" : "+") + pad(Math.floor(Math.abs(o) / 60) * 100 + Math.abs(o) % 60, 4),</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>S:<span class="Apple-converted-space">    </span>["th", "st", "nd", "rd"][d % 10 &gt; 3 ? 0 : (d % 100 - d % 10 != 10) * d % 10]</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>return mask.replace(token, function ($0) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>return $0 in flags ? flags[$0] : $0.slice(1, $0.length - 1);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>});</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>// Some common format strings</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>dateFormat.masks = {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>"default":<span class="Apple-converted-space">      </span>"ddd mmm dd yyyy HH:MM:ss",</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>shortDate:<span class="Apple-converted-space">      </span>"m/d/yy",</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>mediumDate: <span class="Apple-converted-space">    </span>"mmm d, yyyy",</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>longDate: <span class="Apple-converted-space">      </span>"mmmm d, yyyy",</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>fullDate: <span class="Apple-converted-space">      </span>"dddd, mmmm d, yyyy",</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>shortTime:<span class="Apple-converted-space">      </span>"h:MM TT",</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>mediumTime: <span class="Apple-converted-space">    </span>"h:MM:ss TT",</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>longTime: <span class="Apple-converted-space">      </span>"h:MM:ss TT Z",</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>isoDate:<span class="Apple-converted-space">        </span>"yyyy-mm-dd",</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>isoTime:<span class="Apple-converted-space">        </span>"HH:MM:ss",</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>isoDateTime:<span class="Apple-converted-space">    </span>"yyyy-mm-dd'T'HH:MM:ss",</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>isoUtcDateTime: "UTC:yyyy-mm-dd'T'HH:MM:ss'Z'"</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>// Internationalization strings</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>dateFormat.i18n = {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>dayNames: [</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>],</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>monthNames: [</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>]</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// For convenience...</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>Date.prototype.format = function (mask, utc) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>return dateFormat(this, mask, utc);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}; <span class="Apple-converted-space">               </span></span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>function init(){</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Setup Iteration Dropdown</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>var iterationDropdownConfig = {};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>gIterationDropdown = new rally.sdk.ui.IterationDropdown(iterationDropdownConfig, rallyDataSource);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>gIterationDropdown.display("iteration_selection", onIterationSelected);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// call querying function</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>init();</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>rally.addOnLoad(tableExample);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;/script&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;/head&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;body&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;div id="iteration_selection"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;/div&gt;&lt;P&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;div id="summary"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;/div&gt;&lt;P&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;div id="table_output"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;/body&gt;</span></p>
+<p class="p1"><span class="s1">&lt;/html&gt;</span></p>
+</body>
 </html>
