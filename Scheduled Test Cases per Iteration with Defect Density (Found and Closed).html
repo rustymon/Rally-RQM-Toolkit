@@ -404,6 +404,7 @@
                                         if (results.defectdensity[DDNdx].TestCase.FormattedID == aTest.FormattedID) {
                                             testdefectcounter++;
                                             if (results.defectdensity[DDNdx].State == "Closed") { // Added by ARL 4-14
+					    testcloseddefectcounter++; //Added by ARL 4-25
                                             aTest.DefectIDs = aTest.DefectIDs + "<B>" + results.defectdensity[DDNdx].FormattedID + ". </B>" + results.defectdensity[DDNdx].Name + "<P>";
                                            };
                                         };
