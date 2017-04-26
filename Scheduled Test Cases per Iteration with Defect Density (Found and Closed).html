@@ -4,7 +4,7 @@
     <head>
         <title>All Test Cases per Iteration no Summary</title>
         <meta name="Name" content="Test Cases Per Iteration no Summary" />
-        <meta name="Version" content="1.5" />
+        <meta name="Version" content="1.6" />
         <meta name="Vendor" content="Rally Software" />
         <meta name="Author" content="Joel K and Rusty L" />
         <script src='/apps/1.31/sdk.js' type='text/javascript'>
@@ -13,6 +13,8 @@
             
             // This app queries iteratively all test cases associated to user stories and defects.  It also includes those in scheduled test sets.  Version 1.4 adds Defect ID's and Names associated to test cases for current iteration.
             // Version 1.5 adds closed defects and associated defect IDs. Aaron Rusty Lloyd (ARL) - 14 April 2017
+	    // Version 1.6 fixes a bug in which only closed defect IDs were shown. - ARL 04.26.17
+		
             // declare global variables
             var gStories = new Array();
             var gIterationDropdown;
@@ -277,9 +279,9 @@
                                     if (defecttestcaseID != "noID") {
                                         if (results.defectdensity[DDNdx].TestCase.FormattedID == aTest.FormattedID) {
                                             testdefectcounter++;
+                                            aTest.DefectIDs = aTest.DefectIDs + "<B>" + results.defectdensity[DDNdx].FormattedID + ". </B>" + results.defectdensity[DDNdx].Name + "<P>"; //Moved to proper place so report reflects all associated IDs, not just closed ones - ARL 04.26.17
                                             if (results.defectdensity[DDNdx].State == "Closed") {  //Added by ARL 04.14.17
-                                            testcloseddefectcounter++;
-                                            aTest.DefectIDs = aTest.DefectIDs + "<B>" + results.defectdensity[DDNdx].FormattedID + ". </B>" + results.defectdensity[DDNdx].Name + "<P>";
+                                                  testcloseddefectcounter++;
                                             };
                                         };
                                     };
@@ -403,10 +405,10 @@
                                     if (defecttestcaseID != "noID") {
                                         if (results.defectdensity[DDNdx].TestCase.FormattedID == aTest.FormattedID) {
                                             testdefectcounter++;
-                                            if (results.defectdensity[DDNdx].State == "Closed") { //Added by ARL 04.14.17
-					    testcloseddefectcounter++; //Added by ARL 04.25.17 
-                                            aTest.DefectIDs = aTest.DefectIDs + "<B>" + results.defectdensity[DDNdx].FormattedID + ". </B>" + results.defectdensity[DDNdx].Name + "<P>";
-                                           };
+                                            aTest.DefectIDs = aTest.DefectIDs + "<B>" + results.defectdensity[DDNdx].FormattedID + ". </B>" + results.defectdensity[DDNdx].Name + "<P>"; //Moved to proper place so report reflects all associated IDs, not just closed ones - ARL 04.26.17
+                                            if (results.defectdensity[DDNdx].State == "Closed") {  //Added by ARL 04.14.17
+                                                  testcloseddefectcounter++; //Added by ARL 04.25.17
+                                            };
                                         };
                                     };
                                 };
@@ -528,10 +530,10 @@
                                     if (defecttestcaseID != "noID") {
                                         if (results.defectdensity[DDNdx].TestCase.FormattedID == aTest.FormattedID) {
                                             testdefectcounter++;
-                                            if (results.defectdensity[DDNdx].State == "Closed") { // Added by ARL 04.14.17
-                                            testcloseddefectcounter++;
-                                            aTest.DefectIDs = aTest.DefectIDs + "<B>" + results.defectdensity[DDNdx].FormattedID + ". </B>" + results.defectdensity[DDNdx].Name + "<P>";
-                                           };
+                                            aTest.DefectIDs = aTest.DefectIDs + "<B>" + results.defectdensity[DDNdx].FormattedID + ". </B>" + results.defectdensity[DDNdx].Name + "<P>"; //Moved to proper place so report reflects all associated IDs, not just closed ones - ARL 04.26.17
+                                            if (results.defectdensity[DDNdx].State == "Closed") {  //Added by ARL 04.14.17
+                                                  testcloseddefectcounter++;
+                                            };
                                         };
                                     };
                                 };
